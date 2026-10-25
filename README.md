@@ -4,7 +4,7 @@
 
 Ay ve gökyüzü fotoğrafçıları için ücretsiz, açık kaynak, **internetsiz çalışan** gökyüzü rehberi ve çekim planlayıcı. Nex ailesinden.
 
-> Durum: **önizleme (0.2.x)**. Android.
+> Durum: **önizleme (0.3.x)**. Android + iPhone (web uygulaması).
 
 | Bölüm | Ne yapar |
 |---|---|
@@ -12,6 +12,16 @@ Ay ve gökyüzü fotoğrafçıları için ücretsiz, açık kaynak, **internetsi
 | **Gökyüzü** | **Kamera** modunda canlı kamera görüntüsünün üstünde, **AR** modunda karanlık gökyüzü haritasında yıldızlar, takımyıldızlar, gezegenler, Ay ve derin uzay cisimleri gerçek konumlarında. "Görüş alanında" satırı o an kadrajdaki cisimleri listeler. Aranan cisim ekran dışındaysa ok seni ona çevirir. |
 | **Planlayıcı** | **Ay:** doğuş/batış saati ve yönü, evre, aydınlanma, görünen büyüklük (süper ay), mesafe, yaklaşan evreler. **Güneş:** doğuş/batış, altın ve mavi saat. **Kadraj:** popüler makineler (P1000, P950, SX70, Canon/Nikon/Sony/Fuji gövdeleri, astro kameralar), telefonunun kendi kameraları; popüler objektif ve teleskoplar, telekonvertör — cismin kadrajda gerçek boyutu. |
 | **Harita** | Ay ve Güneş doğuş/batış yönleri haritada. Ön plana (kale, minare…) uzun bas: doğan Ay'ı onun arkasında görmek için nerede durman gerektiğini hesaplar. |
+
+## iPhone (web uygulaması)
+
+iPhone/iPad için NexSky, App Store gerektirmeyen bir web uygulamasıdır: **https://eirahoutmoss.github.io/nexsky/**
+
+1. Safari'de adresi aç → **Paylaş** → **Ana Ekrana Ekle**.
+2. Ana ekrandaki NexSky simgesinden aç; konum iznini ver.
+3. Gökyüzü sekmesinde **Kamera** veya **AR Modu**na dokun; iOS hareket (ve kamera) iznini sorar, "İzin Ver" de. Ekrandaki gökyüzü pusulayla kaymışsa parlak bir cismi ortalayıp **Hizala**'ya bas.
+
+İlk açılıştan sonra internetsiz çalışır (harita altlığı hariç). Kaynak `docs/` klasöründedir; GitHub Pages bu klasörden yayımlar (Settings → Pages → `main` / `/docs`). Yeni sürüm yayımlandığında uygulama kendiliğinden güncellenir.
 
 ## Güncelleme
 
