@@ -1,0 +1,10 @@
+Moon colour map (app/src/main/assets/moon_map.jpg)
+
+Source: NASA's Scientific Visualization Studio, "CGI Moon Kit" (ID 4720),
+lroc_color_poles_2k, based on the LROC WAC mosaic from NASA's Lunar
+Reconnaissance Orbiter. Visualization by Ernie Wright (USRA); scientist
+Noah Petro (NASA/GSFC).
+https://svs.gsfc.nasa.gov/4720
+
+NASA imagery is generally not subject to copyright in the United States.
+Credit: NASA's Scientific Visualization Studio.
