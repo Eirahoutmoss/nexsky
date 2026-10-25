@@ -56,10 +56,14 @@ val BODIES = listOf(
     Body("Canon EOS 90D", "APS-C", CANON_W, CANON_H),
     Body("Canon EOS 250D", "APS-C", CANON_W, CANON_H),
     Body("Canon EOS 2000D", "APS-C", CANON_W, CANON_H),
+    Body("Canon EOS M50 Mark II", "APS-C", CANON_W, CANON_H),
     Body("Nikon D3500", "APS-C", APSC_W, APSC_H),
     Body("Nikon D7500", "APS-C", APSC_W, APSC_H),
     Body("Nikon Z50", "APS-C", APSC_W, APSC_H),
+    Body("Sony A6000", "APS-C", APSC_W, APSC_H),
+    Body("Sony A6100", "APS-C", APSC_W, APSC_H),
     Body("Sony A6400", "APS-C", APSC_W, APSC_H),
+    Body("Sony A6600", "APS-C", APSC_W, APSC_H),
     Body("Sony A6700", "APS-C", APSC_W, APSC_H),
     Body("Fujifilm X-T5", "APS-C", APSC_W, APSC_H),
     Body("Fujifilm X-S20", "APS-C", APSC_W, APSC_H),
@@ -84,8 +88,15 @@ val LENSES = listOf(
     Lens("180–600 mm (Nikon Z)", "Objektif", 180.0, 600.0),
     Lens("200–600 mm (Sony)", "Objektif", 200.0, 600.0),
     Lens("200–800 mm (Canon RF)", "Objektif", 200.0, 800.0),
+    Lens("Tamron 18–400 mm", "Objektif", 18.0, 400.0),
+    Lens("Sony 70–350 mm (APS-C)", "Objektif", 70.0, 350.0),
+    Lens("Sigma 60–600 mm", "Objektif", 60.0, 600.0),
     Lens("500 mm f/5.6 PF (Nikon)", "Objektif", 500.0, 500.0),
     Lens("800 mm f/11 (Canon RF)", "Objektif", 800.0, 800.0),
+    Lens("420–800 mm manuel tele", "Ekonomik süper tele", 420.0, 800.0),
+    Lens("650–1300 mm manuel tele", "Ekonomik süper tele", 650.0, 1300.0),
+    Lens("500 mm aynalı (katadioptrik)", "Ekonomik süper tele", 500.0, 500.0),
+    Lens("900 mm f/8 manuel tele", "Ekonomik süper tele", 900.0, 900.0),
     Lens("RedCat 51 (250 mm)", "Teleskop", 250.0, 250.0),
     Lens("Evostar 72ED (420 mm)", "Teleskop", 420.0, 420.0),
     Lens("Evostar 80ED (600 mm)", "Teleskop", 600.0, 600.0),
@@ -123,3 +134,7 @@ fun mainCameraVerticalFov(ctx: Context): Float {
     val main = phoneCameras(ctx).firstOrNull { it.lens.name.startsWith("Ana") } ?: phoneCameras(ctx).firstOrNull()
     return main?.let { Math.toDegrees(2 * atan(it.body.sensorW / (2 * it.lens.minF))).toFloat() } ?: 65f
 }
+
+/** Placeholders that open number fields for the user's own gear. */
+val CUSTOM_BODY = Body("Kendi kameram (sensör ölçüsü gir)", "Özel", APSC_W, APSC_H)
+val CUSTOM_LENS = Lens("Kendi objektifim (odak aralığı gir)", "Özel", 300.0, 1500.0)

@@ -239,18 +239,27 @@ private data class CamOption(val key: String, val label: String, val group: Stri
 private fun FramePlanner(act: MainActivity) {
     val st = act.state
     val phone = remember { phoneCameras(act) }
-    val options = remember(phone) {
+    var customW by rememberSaveable { mutableFloatStateOf(23.5f) }
+    var customH by rememberSaveable { mutableFloatStateOf(15.6f) }
+    var customMin by rememberSaveable { mutableFloatStateOf(300f) }
+    var customMax by rememberSaveable { mutableFloatStateOf(1500f) }
+    val customBody = Body(CUSTOM_BODY.name, "Özel", customW.toDouble(), customH.toDouble())
+    val options = remember(phone, customW, customH) {
         phone.map { CamOption("phone:${it.id}", it.lens.name, "Bu telefon", it.body, it.lens) } +
-            BODIES.map { CamOption(it.name, it.name, it.group, it) }
+            BODIES.map { CamOption(it.name, it.name, it.group, it) } +
+            CamOption("custom", CUSTOM_BODY.name, "Özel", customBody)
     }
     var camKey by rememberSaveable { mutableStateOf("Nikon Coolpix P1000") }
     val cam = options.firstOrNull { it.key == camKey } ?: options.first { it.key == "Nikon Coolpix P1000" }
     val body = cam.body
     var lensName by rememberSaveable { mutableStateOf("150–600 mm (Sigma / Tamron)") }
-    val lens = LENSES.firstOrNull { it.name == lensName } ?: LENSES[9]
+    val lensList = LENSES + CUSTOM_LENS
+    val lens = if (lensName == CUSTOM_LENS.name) {
+        Lens(CUSTOM_LENS.name, "Özel", minOf(customMin, customMax).toDouble(), maxOf(customMin, customMax).toDouble())
+    } else LENSES.firstOrNull { it.name == lensName } ?: LENSES[9]
     var tc by rememberSaveable { mutableFloatStateOf(1f) }
     // Real focal length (mm) being previewed.
-    var realF by rememberSaveable(camKey, lensName) {
+    var realF by rememberSaveable(camKey, lensName, customMin, customMax) {
         mutableFloatStateOf(
             when {
                 cam.phoneLens != null -> cam.phoneLens.minF.toFloat()
@@ -283,9 +292,26 @@ private fun FramePlanner(act: MainActivity) {
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Panel {
             Dropdown("Kamera", options, cam, { it.label }, { it.group }) { camKey = it.key }
+            if (cam.key == "custom") {
+                Spacer(Modifier.height(8.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    NumField("Sensör genişliği (mm)", customW.toDouble(), Modifier.weight(1f)) { customW = it.toFloat() }
+                    NumField("Sensör yüksekliği (mm)", customH.toDouble(), Modifier.weight(1f)) { customH = it.toFloat() }
+                }
+                Text("Tam kare 36 × 24 · APS-C 23,5 × 15,6 (Canon 22,3 × 14,9) · Mikro 4/3 17,3 × 13", color = Muted, fontSize = 11.sp,
+                    modifier = Modifier.padding(top = 4.dp))
+            }
             if (cam.phoneLens == null && body.fixedEq == null) {
                 Spacer(Modifier.height(12.dp))
-                Dropdown("Objektif / teleskop", LENSES, lens, { it.name }, { it.group }) { lensName = it.name }
+                Dropdown("Objektif / teleskop", lensList, lensList.firstOrNull { it.name == lensName } ?: lens, { it.name }, { it.group }) { lensName = it.name }
+                if (lensName == CUSTOM_LENS.name) {
+                    Spacer(Modifier.height(8.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        NumField("En kısa odak (mm)", customMin.toDouble(), Modifier.weight(1f)) { customMin = it.toFloat() }
+                        NumField("En uzun odak (mm)", customMax.toDouble(), Modifier.weight(1f)) { customMax = it.toFloat() }
+                    }
+                    Text("Sabit odaklı objektifte iki alana aynı değeri yazın.", color = Muted, fontSize = 11.sp, modifier = Modifier.padding(top = 4.dp))
+                }
                 Spacer(Modifier.height(8.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                     Text("Telekonvertör", color = Muted, fontSize = 12.sp)

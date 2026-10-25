@@ -92,6 +92,15 @@ fun DrawScope.drawStar(c: Offset, r: Float, color: Color) {
  * Northern-hemisphere view: waxing moon is lit on the right.
  */
 fun DrawScope.drawMoon(c: Offset, r: Float, phaseDeg: Double) {
+    MoonImage.bitmap(phaseDeg)?.let { img ->
+        val d = (r * 2).toInt().coerceAtLeast(2)
+        drawImage(
+            img, dstOffset = androidx.compose.ui.unit.IntOffset((c.x - r).toInt(), (c.y - r).toInt()),
+            dstSize = androidx.compose.ui.unit.IntSize(d, d),
+            filterQuality = androidx.compose.ui.graphics.FilterQuality.High,
+        )
+        return
+    }
     drawCircle(Brush.radialGradient(listOf(Color(0xFFF1F1EC), Color(0xFFBFC1C0), Color(0xFF8E9193)), c + Offset(-r * 0.25f, -r * 0.25f), r * 1.6f), r, c)
     val maria = listOf(Triple(-0.25f, -0.3f, 0.28f), Triple(0.15f, -0.38f, 0.2f), Triple(0.3f, -0.05f, 0.22f), Triple(-0.35f, 0.15f, 0.25f), Triple(0.05f, 0.3f, 0.18f), Triple(-0.05f, -0.05f, 0.15f))
     for ((x, y, s) in maria) drawCircle(Color(0x33505660), r * s, c + Offset(x * r, y * r))
@@ -220,5 +229,28 @@ fun <T> Dropdown(
                 }
             }
         }
+    }
+}
+
+/** A small numeric input (mm). */
+@Composable
+fun NumField(label: String, value: Double, modifier: Modifier = Modifier, onChange: (Double) -> Unit) {
+    var text by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(if (value % 1.0 == 0.0) "%.0f".format(value) else "%.2f".format(java.util.Locale.US, value)) }
+    Column(modifier) {
+        Text(label, color = Muted, fontSize = 11.sp)
+        Spacer(Modifier.size(4.dp))
+        androidx.compose.foundation.text.BasicTextField(
+            value = text,
+            onValueChange = { t ->
+                text = t.filter { it.isDigit() || it == '.' || it == ',' }
+                text.replace(',', '.').toDoubleOrNull()?.takeIf { it > 0 }?.let(onChange)
+            },
+            singleLine = true,
+            keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal),
+            textStyle = androidx.compose.ui.text.TextStyle(color = TextHi, fontSize = 16.sp, fontFamily = Inter, fontWeight = FontWeight.SemiBold),
+            cursorBrush = androidx.compose.ui.graphics.SolidColor(Accent2),
+            modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(Color(0xFF0E1A33))
+                .border(1.dp, Line, RoundedCornerShape(10.dp)).padding(horizontal = 12.dp, vertical = 10.dp),
+        )
     }
 }

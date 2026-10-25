@@ -87,12 +87,21 @@ private fun App(act: MainActivity) {
     val st = act.state
     val loaded = androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
     LaunchedEffect(Unit) {
-        withContext(Dispatchers.IO) { SkyCatalog.load(act) }
+        withContext(Dispatchers.IO) {
+            SkyCatalog.load(act)
+            MoonImage.load(act)
+            MoonImage.setTime(timeOf(System.currentTimeMillis()))
+        }
         loaded.value = true
     }
     // One clock for the whole app.
     LaunchedEffect(Unit) {
-        while (true) { st.now.longValue = System.currentTimeMillis(); delay(1000) }
+        var n = 0
+        while (true) {
+            st.now.longValue = System.currentTimeMillis()
+            if (n++ % 600 == 0) MoonImage.setTime(timeOf(st.now.longValue)) // libration drifts slowly
+            delay(1000)
+        }
     }
     BackHandler(enabled = st.showAbout.value) { st.showAbout.value = false }
     BackHandler(enabled = !st.showAbout.value && st.tab.intValue != 0) { st.tab.intValue = 0 }
