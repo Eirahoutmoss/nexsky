@@ -51,6 +51,7 @@ import androidx.compose.ui.unit.sp
 import io.github.cosinekitty.astronomy.Direction
 import io.github.cosinekitty.astronomy.Time
 import kotlin.math.exp
+import kotlin.math.roundToLong
 import kotlin.math.ln
 
 @Composable
@@ -375,6 +376,57 @@ private fun FramePlanner(act: MainActivity) {
             KV("Şu an", if (pos.altDeg > 0) "%.0f° yüksekte, %s".format(TR, pos.altDeg, dirName(pos.azDeg).lowercase(TR)) else "ufkun altında")
             if (obj.type == ObjType.SUN) Text("Güneşi yalnızca uygun güneş filtresiyle çekin.", color = Warn, fontSize = 13.sp)
         }
+        if (objDeg > 0) Panel {
+            SectionLabel("Kaç mm gerekir?")
+            Spacer(Modifier.height(6.dp))
+            Text(
+                "${obj.name.substringBefore(" (")} (${fmtAngle(objDeg)}) bu sensörde kadrajın kısa kenarına göre:",
+                color = Muted, fontSize = 12.sp,
+            )
+            Spacer(Modifier.height(6.dp))
+            val maxReal = when {
+                cam.phoneLens != null -> cam.phoneLens.minF
+                body.fixedEq != null -> body.fixedEq.endInclusive / body.crop
+                else -> lens.maxF * 2.0   // with a 2× converter
+            }
+            listOf(1.0 to "Kadrajı tam doldurur", 0.5 to "Kadrajın yarısı", 0.25 to "Kadrajın dörtte biri", 0.1 to "Kadrajın %10'u").forEach { (frac, label) ->
+                val need = neededFocal(body, objDeg, frac)
+                val ok = need <= maxReal
+                Row(Modifier.fillMaxWidth().padding(vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text(label, color = Muted, fontSize = 13.sp, modifier = Modifier.weight(1f))
+                    Column(horizontalAlignment = Alignment.End) {
+                        Text(fmtFocal(need), color = if (ok) Good else TextHi,
+                            fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                        Text("%s eşdeğer".format(TR, fmtFocal(need * body.crop)), color = Muted, fontSize = 11.sp)
+                    }
+                }
+            }
+            Spacer(Modifier.height(4.dp))
+            Text(
+                "Yeşil: seçili ekipmanla ulaşılabilir" + (if (body.fixedEq == null && cam.phoneLens == null) " (2× telekonvertör dahil)." else ".") +
+                    if (obj.type == ObjType.PLANET) " Gezegenlerde ayrıntı için çoğunlukla teleskop + Barlow (2×–3×) gerekir." else "",
+                color = Muted, fontSize = 11.sp,
+            )
+        }
+        Panel {
+            SectionLabel("Gezegenler için örnek hesap")
+            Spacer(Modifier.height(4.dp))
+            Text("Bugünkü görünen boyutlarıyla, bu sensörde kadrajın yarısını kaplamaları için:", color = Muted, fontSize = 12.sp)
+            Spacer(Modifier.height(6.dp))
+            val now = st.time(); val ob = st.observer()
+            listOf("moon", "jupiter", "saturn", "venus", "mars", "mercury", "uranus", "neptune").mapNotNull { SkyCatalog.byId(it) }.forEach { o ->
+                val d = (Sky.position(o, now, ob).diameterArcmin ?: 0.0) / 60.0
+                if (d <= 0) return@forEach
+                val need = neededFocal(body, d, 0.5)
+                Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                    ObjIcon(o, 22.dp)
+                    Spacer(Modifier.width(8.dp))
+                    Text(o.name, color = TextHi, fontSize = 13.sp, modifier = Modifier.weight(1f))
+                    Text(fmtAngle(d), color = Muted, fontSize = 12.sp, modifier = Modifier.width(64.dp))
+                    Text(fmtFocal(need * body.crop) + " eşd.", color = TextHi, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                }
+            }
+        }
         Panel {
             SectionLabel("Karşılaştırma")
             Spacer(Modifier.height(8.dp))
@@ -444,4 +496,14 @@ private fun FrameView(fw: Double, fh: Double, o: SkyObject, objDeg: Double, moon
             }
         }
     }
+}
+
+/** Real focal length (mm) at which an object of [objDeg] spans [frac] of the sensor's short side. */
+fun neededFocal(body: Body, objDeg: Double, frac: Double): Double =
+    body.sensorH / (2 * kotlin.math.tan(Math.toRadians(objDeg / frac) / 2))
+
+fun fmtFocal(mm: Double): String = when {
+    mm >= 10_000 -> "%,.0f mm".format(TR, (mm / 100).roundToLong() * 100.0)
+    mm >= 1000 -> "%,.0f mm".format(TR, (mm / 10).roundToLong() * 10.0)
+    else -> "%.0f mm".format(TR, mm)
 }

@@ -35,14 +35,27 @@ object MoonImage {
     private val cache = LinkedHashMap<String, ImageBitmap>()
 
     val available get() = tex != null
+    /** Shown in Hakkında: why the photographic Moon is missing, if it is. */
+    @Volatile var status = "yüklenmedi"; private set
+    private var appCtx: Context? = null
+    private var tries = 0
 
     @Synchronized
     fun load(ctx: Context) {
-        if (tex != null) return
-        val bmp = try { ctx.assets.open("moon_map.jpg").use { BitmapFactory.decodeStream(it) } } catch (_: Exception) { null } ?: return
-        texW = bmp.width; texH = bmp.height
-        tex = IntArray(texW * texH).also { bmp.getPixels(it, 0, texW, 0, 0, texW, texH) }
-        bmp.recycle()
+        appCtx = ctx.applicationContext
+        if (tex != null || tries >= 3) return
+        tries++
+        try {
+            val opts = BitmapFactory.Options().apply { inPreferredConfig = Bitmap.Config.ARGB_8888; inScaled = false }
+            val bmp = ctx.assets.open("moon_map.jpg").use { BitmapFactory.decodeStream(it, null, opts) }
+            if (bmp == null) { status = "harita çözülemedi"; return }
+            texW = bmp.width; texH = bmp.height
+            tex = IntArray(texW * texH).also { bmp.getPixels(it, 0, texW, 0, 0, texW, texH) }
+            bmp.recycle()
+            status = "yüklü (${texW}×${texH})"
+        } catch (e: Throwable) {
+            status = "hata: ${e.javaClass.simpleName} ${e.message ?: ""}"
+        }
     }
 
     fun setTime(t: Time) {
@@ -89,6 +102,7 @@ object MoonImage {
      */
     @Synchronized
     fun bitmap(phaseDeg: Double): ImageBitmap? {
+        if (tex == null) appCtx?.let { load(it) }   // retry once more if the first load failed
         if (tex == null) return null
         val lat0 = (libLat * 2).roundToInt() / 2.0; val lon0 = (libLon * 2).roundToInt() / 2.0
         val bk = "$lat0/$lon0"

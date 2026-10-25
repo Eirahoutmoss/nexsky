@@ -111,6 +111,7 @@ fun AboutScreen(act: MainActivity, onBack: () -> Unit) {
             Text("GÖKYÜZÜ SENİN REHBERİN", color = Muted, fontSize = 12.sp, letterSpacing = 3.sp)
             Spacer(Modifier.height(4.dp))
             Text("Sürüm $version", color = Muted, fontSize = 13.sp)
+            Text("Ay görüntüsü: ${MoonImage.status}", color = Muted, fontSize = 11.sp)
         }
         Panel {
             Text(
