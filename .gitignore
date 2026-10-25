@@ -1,8 +1,8 @@
-.gradle/
-build/
-app/build/
-local.properties
 *.iml
-.idea/
-dist/
 *.tif
+.gradle/
+.idea/
+app/build/
+build/
+dist/
+local.properties
