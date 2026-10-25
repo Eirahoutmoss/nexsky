@@ -45,6 +45,7 @@ class AppState(private val ctx: Context) {
     val planDay = mutableLongStateOf(startOfDay(System.currentTimeMillis()))
     val tab = mutableIntStateOf(0)
     val plannerTab = mutableIntStateOf(0)
+    val showAbout = mutableStateOf(false)
 
     fun observer(): Observer = Sky.observer(lat.doubleValue, lon.doubleValue, heightM.doubleValue.coerceAtLeast(0.0))
     fun time(): Time = timeOf(now.longValue)

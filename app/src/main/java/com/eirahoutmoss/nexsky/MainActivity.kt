@@ -20,6 +20,9 @@ import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.outlined.EventNote
+import androidx.compose.material.icons.outlined.Info
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -91,7 +94,8 @@ private fun App(act: MainActivity) {
     LaunchedEffect(Unit) {
         while (true) { st.now.longValue = System.currentTimeMillis(); delay(1000) }
     }
-    BackHandler(enabled = st.tab.intValue != 0) { st.tab.intValue = 0 }
+    BackHandler(enabled = st.showAbout.value) { st.showAbout.value = false }
+    BackHandler(enabled = !st.showAbout.value && st.tab.intValue != 0) { st.tab.intValue = 0 }
     Column(
         Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Bg2, Bg))).statusBarsPadding().navigationBarsPadding(),
     ) {
@@ -100,9 +104,15 @@ private fun App(act: MainActivity) {
                 if (st.located.value) "%.2f°, %.2f°".format(TR, st.lat.doubleValue, st.lon.doubleValue) else "konum bekleniyor",
                 color = Muted, fontSize = 12.sp,
             )
+            Icon(
+                Icons.Outlined.Info, "Hakkında", tint = if (st.showAbout.value) Accent2 else TextHi,
+                modifier = Modifier.padding(start = 10.dp).clickable { st.showAbout.value = !st.showAbout.value },
+            )
         }
         Box(Modifier.weight(1f).fillMaxWidth().imePadding()) {
-            if (loaded.value) {
+            if (st.showAbout.value) {
+                AboutScreen(act) { st.showAbout.value = false }
+            } else if (loaded.value) {
                 when (st.tab.intValue) {
                     0 -> SearchScreen(act)
                     1 -> SkyScreen(act)
@@ -117,7 +127,7 @@ private fun App(act: MainActivity) {
             DESTS.forEachIndexed { i, d ->
                 NavigationBarItem(
                     selected = st.tab.intValue == i,
-                    onClick = { st.tab.intValue = i },
+                    onClick = { st.tab.intValue = i; st.showAbout.value = false },
                     icon = { Icon(d.icon, d.label) },
                     label = { Text(d.label, fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
                     colors = NavigationBarItemDefaults.colors(

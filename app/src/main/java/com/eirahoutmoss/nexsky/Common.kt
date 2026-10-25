@@ -2,6 +2,7 @@ package com.eirahoutmoss.nexsky
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -9,6 +10,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -16,6 +18,9 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -172,3 +177,48 @@ fun fmtDist(o: SkyObject, p: SkyPos): String? {
 
 @Suppress("unused") private fun hyp(a: Float, b: Float) = sqrt(a * a + b * b)
 @Suppress("unused") private val dot = CircleShape
+
+/** A labelled drop-down with grouped items. */
+@Composable
+fun <T> Dropdown(
+    label: String,
+    items: List<T>,
+    selected: T?,
+    text: (T) -> String,
+    group: (T) -> String,
+    onPick: (T) -> Unit,
+) {
+    var open by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+    Column(Modifier.fillMaxWidth()) {
+        Text(label.uppercase(TR), color = Muted, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp)
+        Spacer(Modifier.size(6.dp))
+        Box {
+            Row(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Color(0xFF0E1A33))
+                    .border(1.dp, Line, RoundedCornerShape(12.dp)).clickable { open = true }.padding(horizontal = 14.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(selected?.let(text) ?: "Seçin", color = TextHi, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                androidx.compose.material3.Icon(androidx.compose.material.icons.Icons.Filled.ArrowDropDown, null, tint = Muted)
+            }
+            androidx.compose.material3.DropdownMenu(
+                expanded = open, onDismissRequest = { open = false },
+                modifier = Modifier.background(Color(0xFF0E1A33)).heightIn(max = 460.dp),
+            ) {
+                var last: String? = null
+                items.forEach { item ->
+                    val g = group(item)
+                    if (g != last) {
+                        last = g
+                        Text(g.uppercase(TR), color = Accent2, fontSize = 11.sp, fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(start = 16.dp, top = 10.dp, bottom = 4.dp))
+                    }
+                    androidx.compose.material3.DropdownMenuItem(
+                        text = { Text(text(item), color = if (item == selected) Accent2 else TextHi, fontSize = 14.sp) },
+                        onClick = { onPick(item); open = false },
+                    )
+                }
+            }
+        }
+    }
+}

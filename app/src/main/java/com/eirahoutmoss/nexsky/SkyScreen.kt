@@ -1,6 +1,22 @@
 package com.eirahoutmoss.nexsky
 
+import android.Manifest
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.camera.core.CameraSelector
+import androidx.camera.core.Preview
+import androidx.camera.lifecycle.ProcessCameraProvider
+import androidx.camera.view.PreviewView
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.runtime.snapshots.Snapshot
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.core.content.ContextCompat
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -158,34 +174,111 @@ private fun manualMatrix(azDeg: Float, altDeg: Float): FloatArray {
     return floatArrayOf(xx, ux, zx, xy, uy, zy, xz, uz, zz)
 }
 
+private enum class SkyMode(val label: String) { CAMERA("Kamera"), AR("AR Modu"), MAP("Harita") }
+
+/** Live back-camera preview (CameraX) behind the sky overlay. */
+@Composable
+private fun CameraPreview(modifier: Modifier) {
+    val ctx = LocalContext.current
+    val owner = LocalLifecycleOwner.current
+    var view by remember { mutableStateOf<PreviewView?>(null) }
+    AndroidView(
+        modifier = modifier,
+        factory = { c ->
+            PreviewView(c).apply {
+                scaleType = PreviewView.ScaleType.FILL_CENTER
+                implementationMode = PreviewView.ImplementationMode.COMPATIBLE
+                view = this
+            }
+        },
+    )
+    DisposableEffect(owner, view) {
+        val v = view
+        var provider: ProcessCameraProvider? = null
+        if (v != null) {
+            val future = ProcessCameraProvider.getInstance(ctx)
+            future.addListener({
+                try {
+                    val p = future.get()
+                    provider = p
+                    val preview = Preview.Builder().build().also { it.setSurfaceProvider(v.surfaceProvider) }
+                    p.unbindAll()
+                    p.bindToLifecycle(owner, CameraSelector.DEFAULT_BACK_CAMERA, preview)
+                } catch (_: Exception) {}
+            }, ContextCompat.getMainExecutor(ctx))
+        }
+        onDispose { try { provider?.unbindAll() } catch (_: Exception) {} }
+    }
+}
+
+/** Notable objects currently inside the screen, for the "Görüş alanında" row. */
+private fun visibleObjects(pr: Projector, fr: SkyFrame): List<Pair<SkyObject, Double>> {
+    val p = FloatArray(2)
+    val out = ArrayList<Triple<SkyObject, Double, Int>>()
+    for ((o, v, sp) in fr.bodies) {
+        if (sp.altDeg > -1 && pr.project(v[0], v[1], v[2], p) && pr.onScreen(p, -10f)) out += Triple(o, sp.altDeg, 0)
+    }
+    for (o in SkyCatalog.objects) {
+        val rank = when {
+            o.type == ObjType.STAR && (o.mag ?: 9.0) < 2.2 -> 1
+            o.type == ObjType.DSO && (o.mag ?: 99.0) < 7.5 -> 2
+            o.type == ObjType.CONSTELLATION -> 3
+            else -> continue
+        }
+        val v = targetEnu(o, fr)
+        if (v[2] < 0f) continue
+        if (pr.project(v[0], v[1], v[2], p) && pr.onScreen(p, -10f)) {
+            out += Triple(o, Math.toDegrees(kotlin.math.asin(v[2].toDouble().coerceIn(-1.0, 1.0))), rank)
+        }
+    }
+    return out.sortedWith(compareBy({ it.third }, { it.first.mag ?: 99.0 })).take(14).map { it.first to it.second }
+}
+
 @Composable
 fun SkyScreen(act: MainActivity) {
     val st = act.state
     val ori = act.orientation
-    var arMode by remember { mutableStateOf(ori.available) }
+    val ctx = LocalContext.current
+    var mode by remember { mutableStateOf(if (ori.available) SkyMode.AR else SkyMode.MAP) }
+    var camAllowed by remember { mutableStateOf(act.has(Manifest.permission.CAMERA)) }
+    val askCam = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { ok ->
+        camAllowed = ok
+        if (ok) mode = SkyMode.CAMERA
+    }
+    val camFov = remember { mainCameraVerticalFov(ctx) }
     var fov by remember { mutableFloatStateOf(70f) }
     var manAz by remember { mutableFloatStateOf(180f) }
     var manAlt by remember { mutableFloatStateOf(30f) }
     var picked by remember { mutableStateOf<SkyObject?>(null) }
+    var canvasSize by remember { mutableStateOf(IntSize(1, 1)) }
     val measurer = rememberTextMeasurer()
-    DisposableEffect(arMode) {
-        if (arMode) ori.start()
+    val sensorMode = mode != SkyMode.MAP
+    DisposableEffect(sensorMode) {
+        if (sensorMode) ori.start()
         onDispose { ori.stop() }
     }
     val slot = st.now.longValue / 2000
     val frame = remember(slot, st.lat.doubleValue, st.lon.doubleValue) { buildFrame(st) }
     val decl = remember(st.lat.doubleValue, st.lon.doubleValue) { st.declination() }
     val target = st.target.value
-    // Hit-testing needs the last projection.
     val hits = remember { ArrayList<Pair<SkyObject, Offset>>() }
+    val viewFov = if (mode == SkyMode.CAMERA) camFov else fov
+    // Refreshed every 2 s without subscribing to the 50 Hz sensor.
+    val inView = remember(slot, mode, manAz, manAlt, fov, canvasSize) {
+        val m = Snapshot.withoutReadObservation { if (sensorMode) ori.matrix.value else manualMatrix(manAz, manAlt) }
+        visibleObjects(Projector(m, if (sensorMode) decl else 0f, canvasSize.width.toFloat(), canvasSize.height.toFloat(), viewFov), frame)
+    }
 
     Box(Modifier.fillMaxSize()) {
+        if (mode == SkyMode.CAMERA && camAllowed) CameraPreview(Modifier.fillMaxSize())
         Canvas(
             Modifier.fillMaxSize()
-                .pointerInput(arMode) {
+                .onSizeChanged { canvasSize = it }
+                .pointerInput(mode) {
                     detectTransformGestures { _, pan, zoom, _ ->
+                        if (mode == SkyMode.CAMERA) return@detectTransformGestures
                         fov = (fov / zoom).coerceIn(8f, 110f)
-                        if (!arMode) {
+                        if (mode == SkyMode.MAP) {
                             val degPerPx = fov / size.height
                             manAz = ((manAz - pan.x * degPerPx) % 360f + 360f) % 360f
                             manAlt = (manAlt + pan.y * degPerPx).coerceIn(-30f, 90f)
@@ -199,11 +292,11 @@ fun SkyScreen(act: MainActivity) {
                     }
                 },
         ) {
-            val m = if (arMode) ori.matrix.value else manualMatrix(manAz, manAlt)
-            val pr = Projector(m, if (arMode) decl else 0f, size.width, size.height, fov)
-            drawSky(pr, frame, measurer, fov, target, hits)
+            val m = if (sensorMode) ori.matrix.value else manualMatrix(manAz, manAlt)
+            val pr = Projector(m, if (sensorMode) decl else 0f, size.width, size.height, viewFov)
+            drawSky(pr, frame, measurer, viewFov, target, hits, overCamera = mode == SkyMode.CAMERA && camAllowed)
         }
-        // Top: target card or hint
+        // Top: target card
         Column(Modifier.fillMaxWidth().align(Alignment.TopCenter).padding(12.dp)) {
             val show = picked ?: target
             if (show != null) {
@@ -216,7 +309,8 @@ fun SkyScreen(act: MainActivity) {
                             Text(show.name, color = TextHi, fontSize = 15.sp, fontWeight = FontWeight.Bold)
                             Text(
                                 "Yükseklik %.0f° · Yön %s (%.0f°)".format(TR, p.altDeg, dirName(p.azDeg).lowercase(TR), p.azDeg) +
-                                    (fmtDist(show, p)?.let { " · $it" } ?: ""),
+                                    (fmtDist(show, p)?.let { " · $it" } ?: "") +
+                                    (p.mag?.let { " · kadir %.1f".format(TR, it) } ?: ""),
                                 color = Muted, fontSize = 12.sp,
                             )
                         }
@@ -231,9 +325,26 @@ fun SkyScreen(act: MainActivity) {
                 }
             }
         }
-        // Bottom: mode switch + heading
+        // Bottom: what is in view, heading, mode switch
         Column(Modifier.fillMaxWidth().align(Alignment.BottomCenter).padding(12.dp)) {
-            if (arMode) {
+            if (inView.isNotEmpty()) {
+                Text("GÖRÜŞ ALANINDA", color = Muted, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp,
+                    modifier = Modifier.padding(start = 4.dp, bottom = 4.dp))
+                Row(Modifier.horizontalScroll(rememberScrollState()).padding(bottom = 8.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    inView.forEach { (o, alt) ->
+                        Row(
+                            Modifier.clip(RoundedCornerShape(50)).background(Color(0xCC0E1A33)).clickable { picked = o }
+                                .padding(start = 6.dp, end = 12.dp, top = 5.dp, bottom = 5.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            ObjIcon(o, 20.dp)
+                            Spacer(Modifier.width(6.dp))
+                            Text(o.name.substringBefore(" (") + " · %.0f°".format(TR, alt), color = TextHi, fontSize = 12.sp)
+                        }
+                    }
+                }
+            }
+            if (sensorMode) {
                 Box(Modifier.align(Alignment.CenterHorizontally).padding(bottom = 8.dp)) { HeadingLabel(ori, decl) }
             } else {
                 Text(
@@ -242,15 +353,21 @@ fun SkyScreen(act: MainActivity) {
                 )
             }
             Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Color(0xCC0E1A33)).padding(4.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                listOf("AR Modu" to true, "Harita" to false).forEach { (label, mode) ->
+                SkyMode.entries.forEach { m ->
+                    val enabled = m == SkyMode.MAP || ori.available
                     Box(
-                        Modifier.weight(1f).clip(RoundedCornerShape(10.dp)).background(if (arMode == mode) Accent else Color.Transparent)
-                            .clickable(enabled = mode != arMode && (!mode || ori.available)) {
-                                if (!mode) { manAz = ((ori.heading() + decl) % 360f + 360f) % 360f; manAlt = 30f }
-                                arMode = mode
+                        Modifier.weight(1f).clip(RoundedCornerShape(10.dp)).background(if (mode == m) Accent else Color.Transparent)
+                            .clickable(enabled = enabled && mode != m) {
+                                when (m) {
+                                    SkyMode.CAMERA -> if (camAllowed) mode = m else askCam.launch(Manifest.permission.CAMERA)
+                                    SkyMode.MAP -> {
+                                        manAz = ((ori.heading() + decl) % 360f + 360f) % 360f; manAlt = 30f; mode = m
+                                    }
+                                    SkyMode.AR -> mode = m
+                                }
                             }.padding(vertical = 11.dp),
                         contentAlignment = Alignment.Center,
-                    ) { Text(label, color = TextHi, fontSize = 14.sp, fontWeight = FontWeight.Bold) }
+                    ) { Text(m.label, color = if (enabled) TextHi else Muted, fontSize = 14.sp, fontWeight = FontWeight.Bold) }
                 }
             }
             if (!ori.available) Text("Bu telefonda yön sensörü yok; Harita modu kullanılıyor.", color = Warn, fontSize = 12.sp)
@@ -267,10 +384,10 @@ private fun HeadingLabel(ori: Orientation, decl: Float) {
 
 private fun DrawScope.drawSky(
     pr: Projector, fr: SkyFrame, tm: TextMeasurer, fov: Float, target: SkyObject?,
-    hits: ArrayList<Pair<SkyObject, Offset>>,
+    hits: ArrayList<Pair<SkyObject, Offset>>, overCamera: Boolean = false,
 ) {
     hits.clear()
-    drawRect(Brush.verticalGradient(listOf(Color(0xFF050916), Color(0xFF0B1638), Color(0xFF13204A))))
+    if (!overCamera) drawRect(Brush.verticalGradient(listOf(Color(0xFF050916), Color(0xFF0B1638), Color(0xFF13204A))))
     val p = FloatArray(2); val q = FloatArray(2)
     val small = TextStyle(color = Color(0xFF9FB3D9), fontSize = 11.sp, fontFamily = Inter)
     val label = TextStyle(color = Color(0xFFE8EEF8), fontSize = 12.sp, fontFamily = Inter, fontWeight = FontWeight.SemiBold)
@@ -295,7 +412,7 @@ private fun DrawScope.drawSky(
             started = true
         }
     }
-    if (started) drawPath(ground, Color(0xCC0A0F1E))
+    if (started) drawPath(ground, if (overCamera) Color(0x330A0F1E) else Color(0xCC0A0F1E))
     drawPath(horizon, Color(0xFF3FA9FF), style = Stroke(width = 2f))
     // Cardinal labels
     listOf("K" to 0.0, "KD" to 45.0, "D" to 90.0, "GD" to 135.0, "G" to 180.0, "GB" to 225.0, "B" to 270.0, "KB" to 315.0).forEach { (n, az) ->
@@ -307,7 +424,7 @@ private fun DrawScope.drawSky(
     }
 
     // Constellation lines + names
-    val lineCol = Color(0x553F7AD9)
+    val lineCol = if (overCamera) Color(0x998FC4FF) else Color(0x553F7AD9)
     for (seg in fr.lines) {
         var prevOk = false
         for (k in 0 until seg.size / 3) {

@@ -31,6 +31,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -49,10 +50,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.cosinekitty.astronomy.Direction
 import io.github.cosinekitty.astronomy.Time
-import kotlin.math.atan
 import kotlin.math.exp
 import kotlin.math.ln
-import kotlin.math.sqrt
 
 @Composable
 fun PlannerScreen(act: MainActivity) {
@@ -233,32 +232,40 @@ private fun SunPlanner(act: MainActivity) {
     }
 }
 
-/** A camera body: sensor size (mm) and its 35 mm-equivalent zoom range. */
-data class CameraPreset(val name: String, val sensorW: Double, val sensorH: Double, val minEq: Double, val maxEq: Double) {
-    val crop: Double get() = 43.267 / sqrt(sensorW * sensorW + sensorH * sensorH)
-    /** Field of view (degrees) at an equivalent focal length. */
-    fun fov(eq: Double): Pair<Double, Double> {
-        val f = eq / crop
-        return Math.toDegrees(2 * atan(sensorW / (2 * f))) to Math.toDegrees(2 * atan(sensorH / (2 * f)))
-    }
-}
-
-val CAMERAS = listOf(
-    CameraPreset("Nikon P1000", 6.17, 4.55, 24.0, 3000.0),
-    CameraPreset("Nikon P950", 6.17, 4.55, 24.0, 2000.0),
-    CameraPreset("Canon SX70 HS", 6.17, 4.55, 21.0, 1365.0),
-    CameraPreset("Tam kare (FF)", 36.0, 24.0, 14.0, 2000.0),
-    CameraPreset("APS-C (1,5×)", 23.5, 15.6, 10.0, 1500.0),
-    CameraPreset("APS-C Canon (1,6×)", 22.3, 14.9, 10.0, 1500.0),
-    CameraPreset("Mikro 4/3", 17.3, 13.0, 8.0, 1200.0),
-)
+/** One selectable camera: a body, or one of the phone's own cameras. */
+private data class CamOption(val key: String, val label: String, val group: String, val body: Body, val phoneLens: Lens? = null)
 
 @Composable
 private fun FramePlanner(act: MainActivity) {
     val st = act.state
-    var camIdx by rememberSaveable { mutableIntStateOf(0) }
-    val cam = CAMERAS[camIdx]
-    var eq by rememberSaveable(camIdx) { mutableFloatStateOf(cam.maxEq.toFloat()) }
+    val phone = remember { phoneCameras(act) }
+    val options = remember(phone) {
+        phone.map { CamOption("phone:${it.id}", it.lens.name, "Bu telefon", it.body, it.lens) } +
+            BODIES.map { CamOption(it.name, it.name, it.group, it) }
+    }
+    var camKey by rememberSaveable { mutableStateOf("Nikon Coolpix P1000") }
+    val cam = options.firstOrNull { it.key == camKey } ?: options.first { it.key == "Nikon Coolpix P1000" }
+    val body = cam.body
+    var lensName by rememberSaveable { mutableStateOf("150–600 mm (Sigma / Tamron)") }
+    val lens = LENSES.firstOrNull { it.name == lensName } ?: LENSES[9]
+    var tc by rememberSaveable { mutableFloatStateOf(1f) }
+    // Real focal length (mm) being previewed.
+    var realF by rememberSaveable(camKey, lensName) {
+        mutableFloatStateOf(
+            when {
+                cam.phoneLens != null -> cam.phoneLens.minF.toFloat()
+                body.fixedEq != null -> (body.fixedEq.endInclusive / body.crop).toFloat()
+                else -> lens.maxF.toFloat()
+            },
+        )
+    }
+    val f = when {
+        cam.phoneLens != null -> cam.phoneLens.minF
+        body.fixedEq != null -> realF.toDouble()
+        else -> realF.toDouble() * tc
+    }
+    val eq = f * body.crop
+
     val targets = remember(st.target.value) {
         val base = listOf("moon", "jupiter", "saturn", "mars", "venus", "M42", "M31", "M45", "M13").mapNotNull { SkyCatalog.byId(it) }
         (listOfNotNull(st.target.value) + base).distinctBy { it.id }
@@ -267,19 +274,25 @@ private fun FramePlanner(act: MainActivity) {
     val obj = targets[tIdx.coerceIn(0, targets.size - 1)]
     val pos = Sky.position(obj, st.time(), st.observer())
     val phase = remember(st.now.longValue / 60_000) { MoonCalc.info(st.time()).phaseDeg }
-    val (fw, fh) = cam.fov(eq.toDouble())
+    val (fw, fh) = body.fovReal(f)
     val objDeg = when (obj.type) {
         ObjType.DSO -> (obj.sizeArcmin.maxOrNull() ?: 0.0) / 60.0
         else -> (pos.diameterArcmin ?: 0.0) / 60.0
     }
+    val aspect = (body.sensorW / body.sensorH).toFloat()
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Panel {
-            SectionLabel("Kamera")
-            Spacer(Modifier.height(6.dp))
-            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                CAMERAS.forEachIndexed { i, c -> Chip(c.name, i == camIdx) { camIdx = i } }
+            Dropdown("Kamera", options, cam, { it.label }, { it.group }) { camKey = it.key }
+            if (cam.phoneLens == null && body.fixedEq == null) {
+                Spacer(Modifier.height(12.dp))
+                Dropdown("Objektif / teleskop", LENSES, lens, { it.name }, { it.group }) { lensName = it.name }
+                Spacer(Modifier.height(8.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text("Telekonvertör", color = Muted, fontSize = 12.sp)
+                    listOf(1f to "yok", 1.4f to "1,4×", 2f to "2×").forEach { (k, l) -> Chip(l, tc == k) { tc = k } }
+                }
             }
-            Spacer(Modifier.height(10.dp))
+            Spacer(Modifier.height(12.dp))
             SectionLabel("Hedef")
             Spacer(Modifier.height(6.dp))
             Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -289,23 +302,36 @@ private fun FramePlanner(act: MainActivity) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 SectionLabel("Odak uzaklığı")
                 Spacer(Modifier.weight(1f))
-                Text("%.0f mm (35 mm eşdeğeri)".format(TR, eq), color = TextHi, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                Text(
+                    (if (body.fixedEq == null) "%.0f mm · ".format(TR, f) else "") + "%.0f mm eşdeğer".format(TR, eq),
+                    color = TextHi, fontSize = 14.sp, fontWeight = FontWeight.Bold,
+                )
             }
-            // Logarithmic slider: zoom ranges span two orders of magnitude.
-            val lo = ln(cam.minEq).toFloat(); val hi = ln(cam.maxEq).toFloat()
-            Slider(
-                value = ln(eq.toDouble()).toFloat().coerceIn(lo, hi), onValueChange = { eq = exp(it.toDouble()).toFloat() },
-                valueRange = lo..hi,
-                colors = SliderDefaults.colors(thumbColor = Accent2, activeTrackColor = Accent, inactiveTrackColor = Line),
-            )
-            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                listOf(24.0, 300.0, 1000.0, 2000.0, 3000.0).filter { it in cam.minEq..cam.maxEq }.forEach { f ->
-                    Chip("%.0f mm".format(TR, f), kotlin.math.abs(eq - f) < 1) { eq = f.toFloat() }
+            // Zoom: a logarithmic slider; fixed lenses have nothing to slide.
+            val range: ClosedFloatingPointRange<Double>? = when {
+                cam.phoneLens != null -> null
+                body.fixedEq != null -> (body.fixedEq.start / body.crop)..(body.fixedEq.endInclusive / body.crop)
+                lens.zoom -> lens.minF..lens.maxF
+                else -> null
+            }
+            if (range != null) {
+                val lo = ln(range.start).toFloat(); val hi = ln(range.endInclusive).toFloat()
+                Slider(
+                    value = ln(realF.toDouble()).toFloat().coerceIn(lo, hi), onValueChange = { realF = exp(it.toDouble()).toFloat() },
+                    valueRange = lo..hi,
+                    colors = SliderDefaults.colors(thumbColor = Accent2, activeTrackColor = Accent, inactiveTrackColor = Line),
+                )
+                if (body.fixedEq != null) {
+                    Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        listOf(24.0, 300.0, 1000.0, 2000.0, 3000.0).filter { it in body.fixedEq }.forEach { e ->
+                            Chip("%.0f mm".format(TR, e), kotlin.math.abs(eq - e) < 1) { realF = (e / body.crop).toFloat() }
+                        }
+                    }
                 }
             }
         }
         Panel {
-            FrameView(fw, fh, obj, objDeg, phase, Modifier.fillMaxWidth().aspectRatio((cam.sensorW / cam.sensorH).toFloat()))
+            FrameView(fw, fh, obj, objDeg, phase, Modifier.fillMaxWidth().aspectRatio(aspect))
             Spacer(Modifier.height(10.dp))
             val ratio = if (objDeg > 0) objDeg / minOf(fw, fh) else 0.0
             val verdict = when {
@@ -319,21 +345,34 @@ private fun FramePlanner(act: MainActivity) {
             Text(verdict, color = if (ratio > 1.0) Warn else Accent2, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
             Spacer(Modifier.height(6.dp))
             KV("Kadraj", "%s × %s".format(TR, fmtAngle(fw), fmtAngle(fh)))
-            if (objDeg > 0) KV("Cismin boyutu", fmtAngle(objDeg) + (if (objDeg > 0) " (kadrajın %%%.0f'i)".format(TR, ratio * 100) else ""))
+            if (objDeg > 0) KV("Cismin boyutu", fmtAngle(objDeg) + " (kadrajın %%%.0f'i)".format(TR, ratio * 100))
             KV("Şu an", if (pos.altDeg > 0) "%.0f° yüksekte, %s".format(TR, pos.altDeg, dirName(pos.azDeg).lowercase(TR)) else "ufkun altında")
             if (obj.type == ObjType.SUN) Text("Güneşi yalnızca uygun güneş filtresiyle çekin.", color = Warn, fontSize = 13.sp)
         }
         Panel {
-            SectionLabel("Odak karşılaştırması")
+            SectionLabel("Karşılaştırma")
             Spacer(Modifier.height(8.dp))
-            val focals = listOf(cam.minEq, 300.0, 1000.0, cam.maxEq).filter { it in cam.minEq..cam.maxEq }.distinct()
-            focals.chunked(2).forEach { row ->
+            // (label, real focal) pairs to compare
+            val cmp: List<Pair<String, Double>> = when {
+                cam.phoneLens != null -> phone.map { it.lens.name.substringBefore(" (") to it.lens.minF }
+                body.fixedEq != null -> listOf(body.fixedEq.start, 300.0, 1000.0, body.fixedEq.endInclusive)
+                    .filter { it in body.fixedEq }.distinct().map { "%.0f mm".format(TR, it) to it / body.crop }
+                else -> listOf(
+                    "%.0f mm".format(TR, lens.minF) to lens.minF,
+                    "%.0f mm".format(TR, lens.maxF) to lens.maxF,
+                    "%.0f mm + 1,4×".format(TR, lens.maxF) to lens.maxF * 1.4,
+                    "%.0f mm + 2×".format(TR, lens.maxF) to lens.maxF * 2,
+                ).distinctBy { it.second }
+            }
+            val cmpBody = if (cam.phoneLens != null) null else body
+            cmp.chunked(2).forEach { row ->
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(bottom = 8.dp)) {
-                    row.forEach { f ->
-                        val (w, h) = cam.fov(f)
-                        Column(Modifier.weight(1f).clickable { eq = f.toFloat() }) {
-                            FrameView(w, h, obj, objDeg, phase, Modifier.fillMaxWidth().aspectRatio((cam.sensorW / cam.sensorH).toFloat()), compact = true)
-                            Text("%.0f mm".format(TR, f), color = TextHi, fontSize = 12.sp, modifier = Modifier.padding(top = 4.dp))
+                    row.forEach { (label, ff) ->
+                        val b = cmpBody ?: phone.firstOrNull { it.lens.minF == ff }?.body ?: body
+                        val (w, h) = b.fovReal(ff)
+                        Column(Modifier.weight(1f)) {
+                            FrameView(w, h, obj, objDeg, phase, Modifier.fillMaxWidth().aspectRatio((b.sensorW / b.sensorH).toFloat()), compact = true)
+                            Text(label, color = TextHi, fontSize = 12.sp, modifier = Modifier.padding(top = 4.dp))
                         }
                     }
                     if (row.size == 1) Spacer(Modifier.weight(1f))

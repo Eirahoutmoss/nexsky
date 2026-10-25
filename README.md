@@ -4,14 +4,18 @@
 
 Ay ve gökyüzü fotoğrafçıları için ücretsiz, açık kaynak, **internetsiz çalışan** gökyüzü rehberi ve çekim planlayıcı. Nex ailesinden.
 
-> Durum: **önizleme (0.1.x)**. Android.
+> Durum: **önizleme (0.2.x)**. Android.
 
 | Bölüm | Ne yapar |
 |---|---|
 | **Arama** | "Mars", "Jüpiter", "Orion Bulutsusu", "M42", "Ülker", "Kutup Yıldızı", "Büyük Ayı"… yaz; şu an nerede (yön, yükseklik), bugün doğuş, en yüksek nokta ve batış saati, parlaklık, görünen büyüklük, uzaklık. |
-| **Gökyüzü** | Telefonu göğe tut: yıldızlar, takımyıldızlar, gezegenler, Ay ve derin uzay cisimleri gerçek konumlarında. Aranan cisim ekran dışındaysa ok seni ona çevirir. Harita modunda parmakla gezin. |
-| **Planlayıcı** | **Ay:** doğuş/batış saati ve yönü, evre, aydınlanma, görünen büyüklük (süper ay), mesafe, yaklaşan evreler. **Güneş:** doğuş/batış, altın ve mavi saat. **Kadraj:** Nikon P1000 (24–3000 mm) ve diğer makinelerde cismin kadrajda gerçek boyutu. |
+| **Gökyüzü** | **Kamera** modunda canlı kamera görüntüsünün üstünde, **AR** modunda karanlık gökyüzü haritasında yıldızlar, takımyıldızlar, gezegenler, Ay ve derin uzay cisimleri gerçek konumlarında. "Görüş alanında" satırı o an kadrajdaki cisimleri listeler. Aranan cisim ekran dışındaysa ok seni ona çevirir. |
+| **Planlayıcı** | **Ay:** doğuş/batış saati ve yönü, evre, aydınlanma, görünen büyüklük (süper ay), mesafe, yaklaşan evreler. **Güneş:** doğuş/batış, altın ve mavi saat. **Kadraj:** popüler makineler (P1000, P950, SX70, Canon/Nikon/Sony/Fuji gövdeleri, astro kameralar), telefonunun kendi kameraları; popüler objektif ve teleskoplar, telekonvertör — cismin kadrajda gerçek boyutu. |
 | **Harita** | Ay ve Güneş doğuş/batış yönleri haritada. Ön plana (kale, minare…) uzun bas: doğan Ay'ı onun arkasında görmek için nerede durman gerektiğini hesaplar. |
+
+## Güncelleme
+
+Hakkında ekranındaki **Güncellemeleri denetle** düğmesi GitHub'daki son sürümü kontrol eder; yeni sürüm varsa indirip (SHA-256 ve imza anahtarı denetlenerek) kurulumu başlatır. Sürüm yayımlarken APK'yı release'e ek olarak yükleyin (`vX.Y.Z` etiketi).
 
 ## Doğruluk
 
