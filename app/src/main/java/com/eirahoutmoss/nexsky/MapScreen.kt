@@ -88,7 +88,7 @@ private class RayOverlay(val rays: () -> List<Ray>, val marks: () -> List<Pair<G
             paint.pathEffect = if (r.dashed) DashPathEffect(floatArrayOf(22f, 16f), 0f) else null
             c.drawLine(a.x.toFloat(), a.y.toFloat(), b.x.toFloat(), b.y.toFloat(), paint)
             text.color = r.color
-            c.drawText(r.label, b.x + 10f, b.y, text)
+            c.drawText(r.label, b.x + 10f, b.y.toFloat(), text)
         }
         for ((p, col) in marks()) {
             pj.toPixels(p, a)
