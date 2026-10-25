@@ -33,4 +33,4 @@ Katalog verisi `tools/build_catalog.py` ile [d3-celestial](https://github.com/of
 
 ## Lisans
 
-MIT — © 2026 Hasan Güler. Üçüncü taraf: Astronomy Engine (MIT), d3-celestial verisi (BSD-3), Inter yazı tipi (SIL OFL 1.1), harita © OpenStreetMap katkıda bulunanlar. Lisans metinleri `licenses/` klasöründe.
+MIT — © 2026 Hasan Güler. Üçüncü taraf: Astronomy Engine (MIT), Ay görüntüsü NASA SVS / LRO CGI Moon Kit (kamu malı), d3-celestial verisi (BSD-3), Inter yazı tipi (SIL OFL 1.1), harita © OpenStreetMap katkıda bulunanlar. Lisans metinleri `licenses/` klasöründe.

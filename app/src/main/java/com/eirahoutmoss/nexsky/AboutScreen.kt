@@ -184,6 +184,7 @@ fun AboutScreen(act: MainActivity, onBack: () -> Unit) {
             listOf(
                 "Astronomy Engine — Don Cross (MIT): gök cisimlerinin konum hesapları",
                 "d3-celestial — Olaf Frohn (BSD-3): yıldız, takımyıldız ve derin uzay katalogları",
+                "NASA Scientific Visualization Studio, LRO (kamu malı): Ay görüntüsü — CGI Moon Kit",
                 "OpenStreetMap katkıda bulunanlar (ODbL): harita verisi",
                 "osmdroid (Apache 2.0): harita görünümü",
                 "Inter — Rasmus Andersson (SIL OFL 1.1): yazı tipi",
